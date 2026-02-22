@@ -8,12 +8,12 @@ A fully local, web-based sprinkler controller with weather intelligence. No clou
 ## Features
 
 - **4 independent zones** — manual on/off, timed runs, and full weekly scheduling
-- **Rain skip** — pulls a 24h precipitation forecast from OpenWeatherMap and skips scheduled watering when rain exceeds your threshold
+- **Rain skip** — pulls a 24h precipitation forecast from [OpenWeatherMap](https://openweathermap.org/) and skips scheduled watering when rain exceeds your threshold
 - **Scheduler** — up to 8 schedules per zone, day-of-week selection, persists through reboots
 - **OTA updates** — flash new firmware wirelessly via the web UI
 - **Built-in manual** — full user documentation served from the device itself
 - **AP fallback** — if WiFi is unreachable, the device spins up a hotspot (`HydraSprink-Setup`) so you're never locked out
-- **Zero dependencies** — no MQTT broker, no Home Assistant, no external services beyond a free OWM API key
+- **Zero dependencies** — no MQTT broker, no Home Assistant, no external services beyond a free OpenWeatherMap API key
 
 ---
 
@@ -23,7 +23,8 @@ A fully local, web-based sprinkler controller with weather intelligence. No clou
 |---|---|
 | ESP32 (any variant) | Tested on ESP32 Dev Module |
 | 4-channel relay module | Active LOW recommended |
-| 5V power supply | For relay module VCC |
+| AC/DC to DC Step Down Buck Converter | For ESP and relay module VCC |
+
 
 **Default GPIO mapping** (configurable in firmware):
 
@@ -71,7 +72,7 @@ const float RAIN_SKIP_MM  = 2.5;
 const bool WEB_AUTH_ENABLED = false;
 ```
 
-A free OpenWeatherMap API key is sufficient — the device calls the API every 30 minutes, well within the free tier limit.
+A free [OpenWeatherMap](https://openweathermap.org/) API key is sufficient — the device calls the API every 30 minutes, well within the free tier limit.
 
 ---
 
