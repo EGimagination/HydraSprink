@@ -23,7 +23,8 @@ A fully local, web-based sprinkler controller with weather intelligence. No clou
 |---|---|
 | ESP32 (any variant) | Tested on ESP32 Dev Module |
 | 4-channel relay module | Active LOW recommended |
-| 5V power supply | For relay module VCC |
+| AC/DC to DC Step Down Buck Converter | For ESP and relay module VCC |
+
 
 **Default GPIO mapping** (configurable in firmware):
 
