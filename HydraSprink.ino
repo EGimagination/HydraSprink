@@ -528,7 +528,9 @@ void fetchWeather() {
   if (OWM_API_KEY.length() == 0 || WiFi.status() != WL_CONNECTED) return;
   String url = "http://api.openweathermap.org/data/2.5/weather?q="
                + OWM_CITY + "," + OWM_COUNTRY
-               + "&units=metric&appid=" + OWM_API_KEY;
+//              + "&units=metric&appid=" + OWM_API_KEY; // Uncomment to update in metric
+               + "&units=imperial&appid=" + OWM_API_KEY; // Comment out to update in metric.
+
   HTTPClient http;
   http.begin(url);
   http.setTimeout(5000);
