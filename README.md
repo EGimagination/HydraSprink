@@ -8,7 +8,7 @@ A fully local, web-based sprinkler controller with weather intelligence. No clou
 ## Features
 
 - **4 independent zones** — manual on/off, timed runs, and full weekly scheduling
-- **Rain skip** — pulls a 24h precipitation forecast from OpenWeatherMap and skips scheduled watering when rain exceeds your threshold
+- **Rain skip** — pulls a 24h precipitation forecast from [OpenWeatherMap](https://openweathermap.org/) and skips scheduled watering when rain exceeds your threshold
 - **Scheduler** — up to 8 schedules per zone, day-of-week selection, persists through reboots
 - **OTA updates** — flash new firmware wirelessly via the web UI
 - **Built-in manual** — full user documentation served from the device itself
@@ -72,7 +72,7 @@ const float RAIN_SKIP_MM  = 2.5;
 const bool WEB_AUTH_ENABLED = false;
 ```
 
-A free OpenWeatherMap API key is sufficient — the device calls the API every 30 minutes, well within the free tier limit.
+A free [OpenWeatherMap](https://openweathermap.org/) API key is sufficient — the device calls the API every 30 minutes, well within the free tier limit.
 
 ---
 
