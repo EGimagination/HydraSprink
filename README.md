@@ -1,4 +1,4 @@
-# HydraFlow 💧
+# HydraSprink 💧
 ### ESP32 4-Channel Smart Sprinkler Controller
 
 A fully local, web-based sprinkler controller with weather intelligence. No cloud. No subscription. No app. Just navigate to an IP address.
@@ -12,7 +12,7 @@ A fully local, web-based sprinkler controller with weather intelligence. No clou
 - **Scheduler** — up to 8 schedules per zone, day-of-week selection, persists through reboots
 - **OTA updates** — flash new firmware wirelessly via the web UI
 - **Built-in manual** — full user documentation served from the device itself
-- **AP fallback** — if WiFi is unreachable, the device spins up a hotspot (`HydraFlow-Setup`) so you're never locked out
+- **AP fallback** — if WiFi is unreachable, the device spins up a hotspot (`HydraSprink-Setup`) so you're never locked out
 - **Zero dependencies** — no MQTT broker, no Home Assistant, no external services beyond a free OWM API key
 
 ---
