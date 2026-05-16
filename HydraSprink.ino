@@ -1,5 +1,5 @@
 /****************************************************
-   HYDRASPRINK v1.5.0
+   HYDRASPRINK v1.6.0
    4-Channel Sprinkler Controller with OLED display
 
    Sketch folder must contain:
@@ -24,9 +24,10 @@
 #include <Adafruit_SSD1306.h>
 #include "html.h"
 
-#define FIRMWARE_VER  "1.5.0"
+#define FIRMWARE_VER  "0.7.0"
 #define NUM_ZONES     4
 #define MAX_SCHEDULES 16
+#define RAIN_SKIP_MM  0.0f   // schedules are skipped when last-hour rain > this; 0.0 = skip on ANY reported rain
 
 // ─────────────────────────────────────────────────
 //  RELAY PINS — edit to match your wiring
@@ -62,6 +63,7 @@ String OWM_API_KEY  = "";
 String OWM_CITY     = "Hollister";
 String OWM_COUNTRY  = "US";
 bool   USE_IMPERIAL = false;
+int    TZ_OFFSET    = -8;    // UTC offset in hours; set in Settings (e.g. -8 for PST, -7 for PDT)
 
 // ─────────────────────────────────────────────────
 //  ZONE STATE
@@ -87,6 +89,7 @@ struct Schedule {
 };
 Schedule schedules[MAX_SCHEDULES];
 int      scheduleCount = 0;
+int      lastFiredMin[MAX_SCHEDULES];  // tracks minute each schedule last fired (-1 = never)
 
 // ─────────────────────────────────────────────────
 //  WEATHER (always stored in metric)
@@ -137,6 +140,7 @@ void loadSettings() {
   OWM_COUNTRY  = prefs.getString("country", "US");
   USE_IMPERIAL = prefs.getBool("imperial",  false);
   oledType     = (uint8_t)prefs.getInt("oled", 0);
+  TZ_OFFSET    = prefs.getInt("tzOffset", -8);
   prefs.end();
 }
 void saveSettings() {
@@ -148,6 +152,7 @@ void saveSettings() {
   prefs.putString("country", OWM_COUNTRY);
   prefs.putBool("imperial",  USE_IMPERIAL);
   prefs.putInt("oled",       (int)oledType);
+  prefs.putInt("tzOffset",   TZ_OFFSET);
   prefs.end();
 }
 void loadZoneNames() {
@@ -243,7 +248,7 @@ void draw32_zones() {
     if (n > 1) { oled->print(" +"); oled->print(n-1); }
   }
   oled->setCursor(0, 24);
-  oled->print(weather.rainMm >= 2.5f ? "! Rain skip ON" : "  Rain skip off");
+  oled->print(weather.rainMm > RAIN_SKIP_MM ? "! Rain skip ON" : "  Rain skip off");
 }
 void draw32_weather() {
   oled->setTextSize(1); oled->setCursor(0, 0);
@@ -280,7 +285,7 @@ void draw64_zones() {
     oled->setCursor(128 - (int)st.length()*6, 10 + i*12); oled->print(st);
   }
   oled->setCursor(0, 56);
-  oled->print(weather.rainMm >= 2.5f ? "! Rain skip active" : "Rain skip: off");
+  oled->print(weather.rainMm > RAIN_SKIP_MM ? "! Rain skip active" : "Rain skip: off");
 }
 void draw64_weather() {
   oled->setTextSize(1); oled->setCursor(0, 0); oled->print("-- WEATHER --");
@@ -425,11 +430,20 @@ void updateSchedules() {
   struct tm ti;
   if (!getLocalTime(&ti)) return;
   int h = ti.tm_hour, m = ti.tm_min, todayBit = 1 << ti.tm_wday;
+  // Use a combined minute-of-week key to detect if already fired this minute
+  int minuteKey = ti.tm_wday * 1440 + h * 60 + m;
   for (int i = 0; i < scheduleCount; i++) {
     Schedule& s = schedules[i];
     if (!s.enabled || !(s.days & todayBit)) continue;
-    if (s.hour == h && s.minute == m && !zones[s.zone].active) {
-      Serial.printf("[Sched] Zone %d -> %ds\n", s.zone+1, s.durationSec);
+    // Fire within the same minute window; lastFiredMin prevents double-fire
+    if (s.hour == h && s.minute == m && lastFiredMin[i] != minuteKey) {
+      lastFiredMin[i] = minuteKey;
+      if (weather.rainMm > RAIN_SKIP_MM) {
+        Serial.printf("[Sched] Zone %d SKIPPED — rain reported (%.1fmm, threshold %.1fmm)\n",
+                      s.zone+1, weather.rainMm, RAIN_SKIP_MM);
+        continue;
+      }
+      Serial.printf("[Sched] Zone %d -> %ds (local %02d:%02d)\n", s.zone+1, s.durationSec, h, m);
       startZone(s.zone, s.durationSec);
     }
   }
@@ -445,6 +459,7 @@ void handleStatus() {
   doc["version"]  = FIRMWARE_VER;
   doc["imperial"] = USE_IMPERIAL;
   doc["oled"]     = (int)oledType;
+  doc["tzOffset"]  = TZ_OFFSET;
   doc["ip"]       = WiFi.isConnected() ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
 
   JsonArray za = doc.createNestedArray("zones");
@@ -474,7 +489,7 @@ void handleSettingsGet() {
   DynamicJsonDocument doc(512);
   doc["ssid"]=WIFI_SSID; doc["api"]=OWM_API_KEY;
   doc["city"]=OWM_CITY; doc["country"]=OWM_COUNTRY;
-  doc["imperial"]=USE_IMPERIAL; doc["oled"]=(int)oledType;
+  doc["imperial"]=USE_IMPERIAL; doc["oled"]=(int)oledType; doc["tzOffset"]=TZ_OFFSET;
   String out; serializeJson(doc, out);
   server.send(200, "application/json", out);
 }
@@ -500,6 +515,18 @@ void handleSettingsPost() {
   if (doc.containsKey("oled")) {
     uint8_t nv = (uint8_t)doc["oled"].as<int>();
     if (nv != oledType) { oledType=nv; needRestart=true; }
+  }
+  if (doc.containsKey("tzOffset")) {
+    int newTZ = doc["tzOffset"].as<int>();
+    if (newTZ != TZ_OFFSET) {
+      TZ_OFFSET = newTZ;
+      // Apply timezone live — no reboot needed
+      char tzBuf[16];
+      if (TZ_OFFSET <= 0) snprintf(tzBuf, sizeof(tzBuf), "UTC%d", -TZ_OFFSET);
+      else                snprintf(tzBuf, sizeof(tzBuf), "UTC-%d", TZ_OFFSET);
+      setenv("TZ", tzBuf, 1);
+      tzset();
+    }
   }
   saveSettings();
   server.send(200, "text/plain", needRestart ? "restart" : "ok");
@@ -584,6 +611,7 @@ void setup() {
   loadSettings();
   loadZoneNames();
   loadSchedules();
+  for (int i = 0; i < MAX_SCHEDULES; i++) lastFiredMin[i] = -1;
   Serial.printf("[Storage] %d schedule(s)\n", scheduleCount);
 
   initOLED();   // before WiFi so splash shows during connect
@@ -602,6 +630,15 @@ void setup() {
   }
 
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  // Apply stored timezone offset so getLocalTime() returns local time
+  {
+    char tzBuf[16];
+    if (TZ_OFFSET <= 0) snprintf(tzBuf, sizeof(tzBuf), "UTC%d", -TZ_OFFSET);
+    else                snprintf(tzBuf, sizeof(tzBuf), "UTC-%d", TZ_OFFSET);
+    setenv("TZ", tzBuf, 1);
+    tzset();
+    Serial.printf("[Time] TZ set to %s (offset %+d)\n", tzBuf, TZ_OFFSET);
+  }
 
   server.on("/",             HTTP_GET,  handleRoot);
   server.on("/api/status",   HTTP_GET,  handleStatus);

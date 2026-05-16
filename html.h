@@ -1,6 +1,3 @@
-#pragma once
-#include <pgmspace.h>
-
 const char INDEX_HTML[] PROGMEM = R"HTMLRAW(
 <!DOCTYPE html>
 <html lang="en">
@@ -34,6 +31,8 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,15,26,.96);backdrop-
 .zhdr{display:flex;align-items:center;justify-content:space-between}
 .zname-input{background:none;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--body);font-weight:700;font-size:.95rem;width:100%;outline:none;cursor:text;transition:border-color .2s}
 .zname-input:focus{border-bottom-color:var(--accent)}
+.btn.zname-save{display:none;padding:4px 10px;min-height:0;margin:0 8px;flex-shrink:0;font-size:.65rem}
+.btn.zname-save.dirty{display:inline-block}
 .znum{font-family:var(--mono);font-size:.65rem;color:var(--muted);background:var(--surface2);border-radius:4px;padding:2px 6px;margin-left:8px;flex-shrink:0}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:background .3s;flex-shrink:0}
 .dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent)}
@@ -87,7 +86,48 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,15,26,.96);backdrop-
 .toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--accent);color:var(--text);padding:12px 20px;border-radius:10px;font-family:var(--mono);font-size:.75rem;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
 .toast.show{transform:translateY(0);opacity:1}
 .toast.err{border-color:var(--danger)}
-@media(max-width:600px){.panel{padding:20px 14px}.cgrid{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){
+  /* Panel */
+  .panel{padding:16px 12px}
+  /* Zone grid — single column on small phones */
+  .cgrid{grid-template-columns:1fr}
+  /* Buttons — 44px min tap target (Apple HIG) */
+  .btn{min-height:44px;padding:10px 16px;font-size:.75rem}
+  /* Inline Save button stays compact even on mobile */
+  .btn.zname-save{min-height:36px;padding:8px 12px;font-size:.7rem}
+  /* Tabs — tighter so all 5 fit without scrolling */
+  .tabs{padding:0 8px}
+  .tab{padding:10px 10px;font-size:.65rem;letter-spacing:.04em}
+  /* Header — hide date, keep time */
+  .hdate{display:none}
+  /* Inputs/selects — 16px prevents iOS auto-zoom on focus */
+  input,select,textarea{font-size:16px !important}
+  .ff input,.ff select{font-size:16px !important}
+  .trow input[type=number]{font-size:16px !important}
+  /* Quick actions — stack vertically */
+  .card.qa-bar{flex-direction:column;align-items:stretch;gap:10px}
+  .card.qa-bar .qa-seq{display:flex;gap:8px;align-items:center}
+  .card.qa-bar span[style*="border"]{display:none}
+  /* Settings city/country — single column */
+  .city-grid{grid-template-columns:1fr !important}
+  /* Schedule cards on mobile (toggled by JS) */
+  .stbl-wrap{display:none}
+  .sched-cards{display:block}
+  /* Toast — full width bottom */
+  .toast{left:12px;right:12px;bottom:16px;text-align:center}
+  /* Weather card */
+  .wcrd{padding:16px;gap:12px}
+  .wtemp{font-size:1.6rem}
+  /* OTA drop zone — less padding */
+  .otadrop{padding:24px 16px}
+  /* fgrid — single column */
+  .fgrid{grid-template-columns:1fr}
+}
+@media(min-width:601px){
+  /* Desktop: schedule cards hidden, table shown */
+  .stbl-wrap{display:block}
+  .sched-cards{display:none}
+}
 </style>
 </head>
 <body>
@@ -117,14 +157,16 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,15,26,.96);backdrop-
     </div>
   </div>
   <p class="stitle">Quick Actions</p>
-  <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+  <div class="card qa-bar" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
     <button class="btn danger" onclick="stopAll()">Stop All Zones</button>
     <span style="color:var(--border)">|</span>
-    <span style="font-size:.8rem;color:var(--muted)">Timed sequence:</span>
-    <input type="number" id="seqMin" value="5" min="1" max="60"
-      style="width:56px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:.75rem;outline:none;text-align:center">
-    <span class="tlbl">min each</span>
-    <button class="btn primary" onclick="runSequence()">Run All</button>
+    <div class="qa-seq">
+      <span style="font-size:.8rem;color:var(--muted)">Sequence:</span>
+      <input type="number" id="seqMin" value="5" min="1" max="60"
+        style="width:56px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:.75rem;outline:none;text-align:center">
+      <span class="tlbl">min each</span>
+      <button class="btn primary" onclick="runSequence()">Run All</button>
+    </div>
   </div>
 </div>
 
@@ -153,7 +195,7 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,15,26,.96);backdrop-
 <!-- ══════════════════ SCHEDULES ══════════════════ -->
 <div class="panel" id="panel-schedules">
   <p class="stitle">Active Schedules</p>
-  <div class="card">
+  <div class="card stbl-wrap">
     <table class="stbl">
       <thead>
         <tr><th>Zone</th><th>Time</th><th>Duration</th><th>Days</th><th>Status</th><th></th></tr>
@@ -163,6 +205,7 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,15,26,.96);backdrop-
       </tbody>
     </table>
   </div>
+  <div class="sched-cards" id="schedCards"></div>
 
   <p class="stitle">Add Schedule</p>
   <div class="card">
@@ -213,6 +256,23 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,15,26,.96);backdrop-
     </p>
   </div>
 
+  <p class="stitle">OLED Display</p>
+  <div class="card">
+    <div class="ff">
+      <label>Display Type</label>
+      <select id="cfgOled">
+        <option value="0">None / Disabled</option>
+        <option value="1">Mini 0.91" — 128×32 SSD1306</option>
+        <option value="2">Standard 0.96" — 128×64 SSD1306</option>
+      </select>
+    </div>
+    <button class="btn primary" onclick="saveOledSetting()">Save &amp; Reboot</button>
+    <p style="font-size:.75rem;color:var(--muted);margin-top:8px">
+      Changes take effect after reboot. I²C: SDA = GPIO 21, SCL = GPIO 22, address 0x3C
+      (change to 0x3D in firmware if the display stays blank).
+    </p>
+  </div>
+
   <p class="stitle">Network</p>
   <div class="card">
     <div class="ff"><label>Wi-Fi SSID</label>
@@ -225,7 +285,7 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,15,26,.96);backdrop-
   <div class="card">
     <div class="ff"><label>OpenWeatherMap API Key</label>
       <input type="text" id="cfgApi" placeholder="Free key — openweathermap.org"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="city-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="ff"><label>City</label>
         <input type="text" id="cfgCity" placeholder="e.g. Hollister"></div>
       <div class="ff"><label>Country Code</label>
@@ -361,45 +421,98 @@ function forceWeather() {
 }
 
 // ── Zone cards ─────────────────────────────────
+// Builds the cards on first render; subsequent calls patch in place so that
+// inputs the user is editing (zone name, timer minutes) keep focus and value.
 function buildZoneCards(arr) {
   currentZones = arr;
   var c = document.getElementById('zoneCards');
   if (!arr || arr.length === 0) return;
-  c.innerHTML = '';
-  for (var i = 0; i < arr.length; i++) {
-    var z   = arr[i];
-    var on  = z.active;
-    var rem = z.timerRemaining;
-    var cd  = '';
-    if (rem > 0) cd = Math.floor(rem/60) + 'm ' + (rem%60) + 's remaining';
-    else if (on) cd = 'Running (manual)';
 
-    var card = document.createElement('div');
-    card.className = 'zcard' + (on ? ' on' : '');
-    card.innerHTML =
-      '<div class="zhdr">' +
-        '<input class="zname-input" type="text" value="' + esc(z.name) + '" ' +
-          'id="zn' + i + '" ' +
-          'onblur="saveName(' + i + ')" ' +
-          'onkeydown="if(event.key===\'Enter\')this.blur()">' +
-        '<div style="display:flex;align-items:center">' +
-          '<div class="dot' + (on ? ' on' : '') + '"></div>' +
-          '<span class="znum">Z' + (i+1) + '</span>' +
+  var existing = c.querySelectorAll('.zcard');
+  var hasStructure = existing.length === arr.length && document.getElementById('zn0');
+
+  if (!hasStructure) {
+    c.innerHTML = '';
+    for (var i = 0; i < arr.length; i++) {
+      var z   = arr[i];
+      var on  = z.active;
+      var rem = z.timerRemaining;
+      var cd  = '';
+      if (rem > 0) cd = Math.floor(rem/60) + 'm ' + (rem%60) + 's remaining';
+      else if (on) cd = 'Running (manual)';
+
+      var card = document.createElement('div');
+      card.className = 'zcard' + (on ? ' on' : '');
+      card.innerHTML =
+        '<div class="zhdr">' +
+          '<input class="zname-input" type="text" value="' + esc(z.name) + '" ' +
+            'id="zn' + i + '" ' +
+            'oninput="markNameDirty(' + i + ')" ' +
+            'onkeydown="if(event.key===\'Enter\')saveName(' + i + ')">' +
+          '<button class="btn zname-save" id="zns' + i + '" onclick="saveName(' + i + ')">Save</button>' +
+          '<div style="display:flex;align-items:center">' +
+            '<div class="dot' + (on ? ' on' : '') + '"></div>' +
+            '<span class="znum">Z' + (i+1) + '</span>' +
+          '</div>' +
         '</div>' +
-      '</div>' +
-      '<div class="zctrl">' +
-        '<button class="btn' + (on ? ' danger' : '') + '" onclick="toggleManual(' + i + ')">' +
-          (on && z.manualOn ? 'Stop' : 'Manual ON') +
-        '</button>' +
-      '</div>' +
-      '<div class="trow">' +
-        '<input type="number" id="tm' + i + '" value="10" min="1" max="180">' +
-        '<span class="tlbl">min</span>' +
-        '<button class="btn" onclick="timerRun(' + i + ')">Timed Run</button>' +
-      '</div>' +
-      '<div class="cdown">' + esc(cd) + '</div>';
-    c.appendChild(card);
+        '<div class="zctrl">' +
+          '<button class="btn' + (on ? ' danger' : '') + '" onclick="toggleManual(' + i + ')">' +
+            (on && z.manualOn ? 'Stop' : 'Manual ON') +
+          '</button>' +
+        '</div>' +
+        '<div class="trow">' +
+          '<input type="number" id="tm' + i + '" value="10" min="1" max="180">' +
+          '<span class="tlbl">min</span>' +
+          '<button class="btn" onclick="timerRun(' + i + ')">Timed Run</button>' +
+        '</div>' +
+        '<div class="cdown">' + esc(cd) + '</div>';
+      c.appendChild(card);
+    }
+    return;
   }
+
+  // Patch in place — never touch focused inputs or the timer-minutes field
+  for (var j = 0; j < arr.length; j++) {
+    var zz  = arr[j];
+    var onj = zz.active;
+    var rj  = zz.timerRemaining;
+    var cdj = '';
+    if (rj > 0) cdj = Math.floor(rj/60) + 'm ' + (rj%60) + 's remaining';
+    else if (onj) cdj = 'Running (manual)';
+
+    var cardEl = existing[j];
+    cardEl.classList.toggle('on', onj);
+
+    var dotEl = cardEl.querySelector('.dot');
+    if (dotEl) dotEl.classList.toggle('on', onj);
+
+    var btnEl = cardEl.querySelector('.zctrl .btn');
+    if (btnEl) {
+      var lbl = (onj && zz.manualOn) ? 'Stop' : 'Manual ON';
+      if (btnEl.textContent !== lbl) btnEl.textContent = lbl;
+      btnEl.classList.toggle('danger', onj);
+    }
+
+    var cdEl = cardEl.querySelector('.cdown');
+    if (cdEl && cdEl.textContent !== cdj) cdEl.textContent = cdj;
+
+    // Only sync name from device when the user isn't editing it
+    // and hasn't typed an unsaved change
+    var nameEl = document.getElementById('zn' + j);
+    if (nameEl && document.activeElement !== nameEl && !nameDirty[j] && nameEl.value !== zz.name) {
+      nameEl.value = zz.name;
+    }
+  }
+}
+
+// Tracks zone-name inputs with unsaved edits — keyed by zone index.
+// Periodic refresh skips updating any input flagged dirty here.
+var nameDirty = {};
+
+function markNameDirty(i) {
+  nameDirty[i] = true;
+  var btn = document.getElementById('zns' + i);
+  if (btn) btn.classList.add('dirty');
 }
 
 function toggleManual(i) {
@@ -424,12 +537,17 @@ function timerRun(i) {
 function saveName(i) {
   var el = document.getElementById('zn'+i);
   var name = el ? el.value.trim() : 'Zone '+(i+1);
-  if (!name) name = 'Zone '+(i+1);
+  if (!name) { name = 'Zone '+(i+1); if (el) el.value = name; }
   apiFetch('/api/zone', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({zone:i, action:'rename', name:name})
-  }).then(function(){ showToast('Name saved'); })
-    .catch(function(){});
+  }).then(function(){
+    showToast('Name saved');
+    nameDirty[i] = false;
+    var btn = document.getElementById('zns'+i);
+    if (btn) btn.classList.remove('dirty');
+    if (el) el.blur();
+  }).catch(function(){ showToast('Save failed', true); });
 }
 
 function stopAll() {
@@ -462,6 +580,24 @@ function runNextInSeq(min) {
   }).catch(function(){ showToast('Sequence error', true); });
 }
 
+// Returns the current display name for zone index z, or a "Zone N" fallback
+// if names haven't loaded yet or are empty.
+function zoneLabel(z) {
+  if (currentZones && currentZones[z] && currentZones[z].name) return currentZones[z].name;
+  return 'Zone ' + (z+1);
+}
+
+// Keeps the "Add Schedule" zone dropdown labels in sync with current names.
+// Updates option text in place so the user's selection survives a refresh.
+function syncZoneSelect() {
+  var sel = document.getElementById('nZone');
+  if (!sel) return;
+  for (var i = 0; i < sel.options.length; i++) {
+    var lbl = zoneLabel(i);
+    if (sel.options[i].textContent !== lbl) sel.options[i].textContent = lbl;
+  }
+}
+
 // ── Schedule table ─────────────────────────────
 function buildScheduleTable(list) {
   var tb = document.getElementById('schedTbody');
@@ -480,7 +616,7 @@ function buildScheduleTable(list) {
     var mm  = String(s.minute).padStart(2,'0');
     html +=
       '<tr>' +
-      '<td>Zone ' + (s.zone+1) + '</td>' +
+      '<td>' + esc(zoneLabel(s.zone)) + '</td>' +
       '<td style="font-family:var(--mono)">' + hh + ':' + mm + '</td>' +
       '<td style="font-family:var(--mono)">' + dur + '</td>' +
       '<td><div class="dchips">' + chips + '</div></td>' +
@@ -530,7 +666,19 @@ function loadSettingsForm() {
     if (document.getElementById('cfgApi'))     document.getElementById('cfgApi').value     = d.api     || '';
     if (document.getElementById('cfgCity'))    document.getElementById('cfgCity').value    = d.city    || '';
     if (document.getElementById('cfgCountry')) document.getElementById('cfgCountry').value = d.country || '';
+    if (document.getElementById('cfgOled') && d.oled !== undefined)
+      document.getElementById('cfgOled').value = String(d.oled);
   }).catch(function(){});
+}
+
+function saveOledSetting() {
+  var sel = document.getElementById('cfgOled');
+  if (!sel) return;
+  apiFetch('/api/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({oled: parseInt(sel.value)})
+  }).then(function(){ showToast('OLED saved — rebooting if changed...'); })
+    .catch(function(e){ showToast('Error: '+e.message, true); });
 }
 
 function saveNetSettings() {
@@ -590,7 +738,7 @@ function refresh() {
   apiFetch('/api/status').then(function(d){
 
     // Zones
-    if (d.zones) buildZoneCards(d.zones);
+    if (d.zones) { buildZoneCards(d.zones); syncZoneSelect(); }
 
     // Weather
     if (d.weather) {
@@ -601,7 +749,7 @@ function refresh() {
       document.getElementById('wIP').textContent = d.ip;
 
     // Schedules
-    if (d.schedules) buildScheduleTable(d.schedules);
+    if (d.schedules) { buildScheduleTable(d.schedules); buildSchedCards(d.schedules); }
 
     // Version
     if (d.version){
@@ -622,6 +770,39 @@ function refresh() {
     }
 
   }).catch(function(e){ console.warn('Status poll failed:', e); });
+}
+
+// ── Mobile schedule cards (shown instead of table on small screens) ─────────
+function buildSchedCards(list) {
+  var el = document.getElementById('schedCards');
+  if (!el) return;
+  if (!list || list.length === 0) {
+    el.innerHTML = '<div class="card" style="color:var(--muted);text-align:center;padding:24px;font-family:var(--mono);font-size:.75rem">No schedules yet</div>';
+    return;
+  }
+  var DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  var html = '';
+  for (var i = 0; i < list.length; i++) {
+    var s = list[i];
+    var chips = '';
+    for (var d = 0; d < DAYS.length; d++)
+      chips += '<span class="dchip' + ((s.days & (1<<d)) ? ' on' : '') + '">' + DAYS[d] + '</span>';
+    var dur = s.durationSec >= 60 ? Math.floor(s.durationSec/60) + 'm' : s.durationSec + 's';
+    var hh = String(s.hour).padStart(2,'0'), mm = String(s.minute).padStart(2,'0');
+    html += '<div class="card" style="margin-bottom:10px;position:relative">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+        '<span style="font-family:var(--mono);font-size:.9rem;color:var(--text);font-weight:700">' + esc(zoneLabel(s.zone)) + '</span>' +
+        '<span style="font-family:var(--mono);font-size:.9rem;color:var(--accent2)">' + hh + ':' + mm + '</span>' +
+        '<button class="btn danger" style="min-height:36px;padding:4px 10px" onclick="delSchedule(' + i + ')">&#x2715;</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:16px;margin-bottom:8px">' +
+        '<span style="font-family:var(--mono);font-size:.7rem;color:var(--muted)">Duration: <span style="color:var(--text)">' + dur + '</span></span>' +
+        '<span style="font-family:var(--mono);font-size:.7rem;color:' + (s.enabled ? 'var(--accent)' : 'var(--muted)') + '">' + (s.enabled ? 'Active' : 'Off') + '</span>' +
+      '</div>' +
+      '<div class="dchips">' + chips + '</div>' +
+    '</div>';
+  }
+  el.innerHTML = html;
 }
 
 setInterval(refresh, 3000);
